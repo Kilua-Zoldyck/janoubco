@@ -2,7 +2,7 @@ name: Update Products Data
 
 on:
   schedule:
-    # يشتغل كل ساعتين
+    # يشتغل كل 6 ساعات (0:00, 6:00, 12:00, 18:00 UTC)
     - cron: '0 */2 * * *'
 
   # يخليك تقدر تشغله يدوي من GitHub Actions tab
@@ -34,6 +34,15 @@ jobs:
           import psycopg2
           import json
           from datetime import datetime
+          from decimal import Decimal
+
+          # دالة لتحويل Decimal و datetime
+          def json_serial(obj):
+              if isinstance(obj, Decimal):
+                  return float(obj)
+              if isinstance(obj, datetime):
+                  return obj.isoformat()
+              raise TypeError(f"Type {type(obj)} not serializable")
 
           # الاتصال بقاعدة البيانات
           conn = psycopg2.connect(os.getenv('SUPABASE_URL'))
@@ -64,10 +73,14 @@ jobs:
           # تحويل النتائج لـ JSON
           result = []
           for row in rows:
-              product = dict(zip(cols, row))
-              # تحويل datetime لـ string
-              if product['last_updated']:
-                  product['last_updated'] = product['last_updated'].isoformat()
+              product = {}
+              for col, val in zip(cols, row):
+                  if isinstance(val, Decimal):
+                      product[col] = float(val)
+                  elif isinstance(val, datetime):
+                      product[col] = val.isoformat()
+                  else:
+                      product[col] = val
               result.append(product)
 
           # حفظ في ملف JSON
